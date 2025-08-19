@@ -1,54 +1,33 @@
-# app.py (v3.0 - Enhanced Modern Theme)
+# streamlit_app.py
 
-import gradio as gr
+import streamlit as st
 import joblib
 import pandas as pd
 
-# --- 1. DEFINE THE ENHANCED CUSTOM THEME ---
-# Vibrant modern theme with gradients, smooth buttons, and refined typography
-modern_theme = gr.themes.Soft(
-    primary_hue=gr.themes.colors.purple,      # vibrant accent
-    secondary_hue=gr.themes.colors.fuchsia,
-    neutral_hue=gr.themes.colors.gray,
-    font=[gr.themes.GoogleFont("Roboto"), "ui-sans-serif", "system-ui", "sans-serif"]
-).set(
-    # Backgrounds
-    body_background_fill="#F0F3F7",
-    body_background_fill_dark="#1E1E2F",
-    panel_background_fill="#FFFFFF",
-    panel_background_fill_dark="#2B2B3A",
-    
-    # Buttons
-    button_primary_background_fill="*primary_500",
-    button_primary_background_fill_hover="*primary_600",
-    button_primary_text_color="white",
-    button_secondary_background_fill="*secondary_400",
-    button_secondary_background_fill_hover="*secondary_500",
-    button_secondary_text_color="white",
-    
-    # Sliders
-    slider_color="*primary_500",
-    slider_color_dark="*primary_400",
-    
-    # Titles & Labels
-    block_title_text_color="*primary_700",
-    block_title_text_color_dark="*primary_300",
-    block_label_text_color="*secondary_700",
-    block_label_text_color_dark="*secondary_300"
+# --- PAGE CONFIGURATION ---
+st.set_page_config(
+    page_title="AI Personalized Learning Assistant",
+    page_icon="🧠",
+    layout="wide"
 )
 
-# --- 2. LOAD THE MODEL ---
-try:
-    MODEL = joblib.load('student_model_v2.pkl')
-    print("✅ Model loaded successfully!")
-except FileNotFoundError:
-    print("❌ Error: 'student_model_v2.pkl' not found.")
-    MODEL = None
+# --- MODEL LOADING ---
+@st.cache_resource
+def load_model():
+    try:
+        model = joblib.load('student_model_v2.pkl')
+        print("✅ Model loaded successfully!")
+        return model
+    except FileNotFoundError:
+        st.error("❌ Error: 'student_model_v2.pkl' not found. Please ensure the model file is in the same directory.")
+        return None
 
-# --- 3. PREDICTION & PERSONALIZATION FUNCTION ---
+MODEL = load_model()
+
+# --- PREDICTION FUNCTION (Unchanged) ---
 def personalize_learning_path(quiz_1, quiz_2, engagement, concepts, avg_time):
     if MODEL is None:
-        return "Model not loaded. Check the console.", {}
+        return "Model not loaded.", {}
 
     columns = ['quiz_1_score', 'quiz_2_score', 'platform_engagement_days', 'concepts_mastered', 'avg_time_per_question']
     input_data = pd.DataFrame([[quiz_1, quiz_2, engagement, concepts, avg_time]], columns=columns)
@@ -60,45 +39,51 @@ def personalize_learning_path(quiz_1, quiz_2, engagement, concepts, avg_time):
     score_trend = quiz_2 - quiz_1
 
     if will_struggle_prob > 0.5:
-        recommendation = "⚠️ **High Risk of Struggling**\n\n"
+        recommendation = "⚠️ **Prediction: High Risk of Struggling.**\n\n"
         if score_trend < -10:
-            recommendation += "**Trend:** Declining scores.\n**Action:** Review previous material before moving forward."
+            recommendation += "**Analysis:** Your quiz scores are declining significantly.\n**Action:** Let's pause new topics and revisit the material from the first quiz to fix the foundational gap."
         elif concepts < 50:
-            recommendation += "**Trend:** Core concepts not mastered.\n**Action:** Focus on conceptual understanding with targeted exercises."
+            recommendation += "**Analysis:** You seem to be struggling with the core concepts.\n**Action:** Let's switch to a conceptual review with 'why' and 'how' questions."
         elif avg_time < 30:
-            recommendation += "**Trend:** Quick guessing observed.\n**Action:** Slow down and prioritize accuracy."
+            recommendation += "**Analysis:** You are answering questions extremely quickly, suggesting guessing.\n**Action:** For the next module, let's focus on accuracy over speed."
         else:
-            recommendation += "**Trend:** General difficulty detected.\n**Action:** Suggested 15-min review of last topics."
+            recommendation += "**Analysis:** There seems to be a general difficulty with the recent material.\n**Action:** I recommend a 15-minute review session covering the last three topics."
     else:
-        recommendation = "✅ **Ready to Advance!**\n\n"
+        recommendation = "✅ **Prediction: Ready to Advance!**\n\n"
         if score_trend > 10:
-            recommendation += "**Trend:** Improving scores!\n**Action:** Fast-track next module."
+            recommendation += "**Analysis:** Fantastic improvement! Your scores are trending upwards.\n**Action:** You've earned a 'fast-track' token. You can skip the next introductory video and jump to the advanced challenge."
         else:
-            recommendation += "**Trend:** Consistent understanding.\n**Action:** Proceed to next module."
+            recommendation += "**Analysis:** You are maintaining a solid and consistent understanding.\n**Action:** Let's keep the momentum going. The next module is ready for you."
 
     confidence_label = {"Struggle": will_struggle_prob, "Succeed": prediction_proba[1]}
     return recommendation, confidence_label
 
-# --- 4. CREATE THE GRADIO INTERFACE ---
-iface = gr.Interface(
-    fn=personalize_learning_path,
-    inputs=[
-        gr.Slider(0, 100, value=70, label="Quiz 1 Score (%)"),
-        gr.Slider(0, 100, value=80, label="Quiz 2 Score (%)"),
-        gr.Slider(1, 30, value=15, label="Platform Engagement (Days)"),
-        gr.Slider(0, 100, value=55, label="Core Concepts Mastered (%)"),
-        gr.Slider(10, 180, value=45, label="Avg. Time Per Question (Seconds)")
-    ],
-    outputs=[
-        gr.Textbox(label="Personalized Recommendation", lines=8),
-        gr.Label(label="Prediction Confidence")
-    ],
-    title="🧠 AI Personalized Learning Assistant v3.0",
-    description="Interactive AI tutor providing adaptive learning recommendations with ML-driven insights.",
-    theme=modern_theme,
-    live=True
-)
+# --- STREAMLIT UI ---
+st.title("🧠 AI Personalized Learning Assistant")
+st.markdown("This advanced AI tutor analyzes deep learning patterns to provide hyper-personalized recommendations.")
 
-# --- 5. LAUNCH ---
-if __name__ == "__main__":
-    iface.launch()
+st.divider()
+
+with st.sidebar:
+    st.header("Student Performance Metrics")
+    quiz_1 = st.slider("Quiz 1 Score (%)", 0, 100, 70)
+    quiz_2 = st.slider("Quiz 2 Score (%)", 0, 100, 80, help="Your most recent score.")
+    engagement = st.slider("Platform Engagement (Days)", 1, 30, 15)
+    concepts = st.slider("Core Concepts Mastered (%)", 0, 100, 55)
+    avg_time = st.slider("Avg. Time Per Question (Seconds)", 10, 180, 45)
+
+if MODEL is not None:
+    recommendation, confidence = personalize_learning_path(quiz_1, quiz_2, engagement, concepts, avg_time)
+    
+    st.subheader("Personalized Recommendation")
+    st.markdown(recommendation)
+
+    st.subheader("Prediction Confidence")
+    prob_struggle = confidence.get("Struggle", 0.0)
+    prob_succeed = confidence.get("Succeed", 0.0)
+    
+    st.markdown("**Probability of Struggling**")
+    st.progress(prob_struggle, text=f"{prob_struggle:.0%}")
+    
+    st.markdown("**Probability of Succeeding**")
+    st.progress(prob_succeed, text=f"{prob_succeed:.0%}")
